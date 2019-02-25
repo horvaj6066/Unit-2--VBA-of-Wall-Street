@@ -1,0 +1,138 @@
+'***************************************************************************************************************************************
+'* This VBA code takes goes through all the worksheets in the excel file and creates some summary statistics of the stock ticker data  *
+'* it goes through each ticker and finds the annual $ and % change in the stock price and also the adds up the total annual volume     *
+'***************************************************************************************************************************************
+
+Sub volume_count()
+    
+    '_________________VARIABLE DECLARATIONS________________
+    
+    'first chunk is for the core loop of the code
+    Dim ticker As String            ' this string holds the current ticker we are manipulating
+    Dim last_row As Long            ' holds the # rows of current worksheet
+    Dim volume As Double            ' holds running tally of volume count
+    Dim opening_price As Double     ' holds the annual opening price
+    Dim closing_price As Double     ' holds annual closing price
+    Dim volume_column As Integer    ' holds the column # for volume
+    Dim close_column As Integer     ' holds the column # for closing stock price
+    Dim ticker_counter As Integer   ' keeps track of how many tickers
+    
+    
+    'the next chunk of declarations is for finding max and min price chge and max volume at the end
+    Dim max_percent_chge As Double         'we use this variable to find max price gain
+    Dim min_percent_chge As Double      'we use this variable to find max decline
+    Dim max_volume As Double            'we use this to find max volume
+    Dim max_gain_row As Double          'when we find the row of max price gain we store here
+    Dim max_decline_row As Double       'when we find the row of max price decline we store here
+    Dim max_volume_row As Double        'when we find the row of max volume we store here
+     
+        
+    '__________________assignments to variables________________
+    
+    number_sheets = ThisWorkbook.Sheets.Count     ' load variable with the number of worksheets in the excel workbook
+    
+    For active_sheet = 1 To number_sheets         ' for loop that goes through each sheet
+        ThisWorkbook.Sheets(active_sheet).Activate    ' activate the current sheet
+        
+        ticker_counter = 2          'start at 2 because we want to print on 2nd row
+        volume_column = 7           ' static, will always be 7
+        close_column = 6            ' static also
+        ticker = Cells(2, 1).Value  'assigns the first ticker in the sheet to ticker variable
+        opening_price = Cells(2, 3).Value ' load up the first opening price from the sheet
+        last_row = Cells(Rows.Count, 1).End(xlUp).Row ' load last row variable with the amt of rows
+        
+        
+        
+        'paint some headers in the current worksheet and format for my output
+        Cells(1, 9).Value = "TICKER"
+        Cells(1, 10).Value = "YEARLY $ CHGE"
+        Cells(1, 11).Value = "YEARLY % CHGE"
+        Cells(1, 12).Value = "TOTAL STOCK VOLUME"
+        Cells(1, 15).Value = "TICKER"
+        Cells(1, 16).Value = "VALUE"
+        Cells(2, 14).Value = "Greatest % increase"
+        Cells(3, 14).Value = "Greatest % decrease"
+        Cells(4, 14).Value = "Highest annual volume"
+        
+        Range("A1:OA1").Font.Bold = True  ' bold
+        Range("N2:N4").Font.Bold = True   ' bold
+        
+    
+             
+    
+        ' this is really the core loop in the code that goes through all the ticker data
+        For Row = 2 To last_row         ' loop going through all rows in a sheet to tally volume and
+                                        ' grab annual opening and closing prices
+                                        
+            
+            If Cells(Row, 1) = ticker Then  'check to see if it's a new ticker
+                volume = volume + Cells(Row, volume_column) 'if same ticker add to volume tally
+            
+            Else    ' what do if we come across a new ticker
+                closing_price = Cells(Row - 1, 6)                   'save the closing price
+                'first we're painting annual summary stats for each ticker
+                Cells((ticker_counter), 9).Value = ticker           'populate first field with current ticker
+                Cells((ticker_counter), 10).NumberFormat = "0.00"   'format $change cell w 2 decimal places
+                Cells((ticker_counter), 10).Value = closing_price - opening_price 'price $ chge
+                Cells((ticker_counter), 11).NumberFormat = "0.00%"      'format % chge column w no decimals
+                
+                If opening_price = 0 Then '- check for a zero to avoid a divide by zero error
+                    opening_price = 1     '- if it's zero make it a 1
+                End If
+                    
+                            
+                Cells((ticker_counter), 11).Value = (closing_price - opening_price) / opening_price 'price % chge
+                Cells((ticker_counter), 12).Value = volume          'populate the volume field w tabulated volume from the last ticker
+                Cells((ticker_counter), 12).NumberFormat = "0,000"  'add a comma separator to make volume easier to read
+                ticker_counter = ticker_counter + 1                 'keeping track of how many unique tickers so we know what row to print to
+                ticker = Cells(Row, 1).Value                        'load up the next ticker
+                volume = 0                                          'reset volume to zero
+                opening_price = Cells(Row, 3)                       'grab the open price of the new ticker
+            
+            End If
+     
+        
+        Next Row
+        
+        
+        'after we've done the iterating and created the table with the ticker, price $, % change we need to go through and find the min and max price change and max total volume
+        max_percent_chge = Application.WorksheetFunction.Max(Range("k2:k" & (ticker_counter + 1)))      ' find what max % price chge is
+        min_percent_chge = Application.WorksheetFunction.Min(Range("k2:k" & (ticker_counter + 1)))      ' find out min % price chge
+        max_volume = Application.WorksheetFunction.Max(Range("L2:L" & (ticker_counter + 1)))            ' find max volum
+        
+        'the following changes two columns - price change and % price change to green if they are positive- I realize the example only did $ change but this is my domain so I'm applying it to % also
+        With Range("J2:K" & ticker_counter).FormatConditions.Add(xlCellValue, xlGreater, 0)
+            With .Interior
+                .ColorIndex = 4 '3is red, 4 is green
+            End With
+        End With
+        
+        'the following changes two columns - price change and % price change to red if they are negative - a zero chge will stay white
+        With Range("J2:K" & ticker_counter).FormatConditions.Add(xlCellValue, xlLess, 0)
+            With .Interior
+                .ColorIndex = 3 '3is red, 4 is green
+            End With
+        End With
+        
+        'now that we have the max and min numbers we use the match function to find out which rows they are in
+        max_gain_row = Application.WorksheetFunction.Match(max_percent_chge, Range("k2:k" & (ticker_counter + 1)), 0) + 1       ' find max % gain row
+        max_decline_row = Application.WorksheetFunction.Match(min_percent_chge, Range("k2:k" & (ticker_counter + 1)), 0) + 1    ' find min % gain row
+        max_volume_row = Application.WorksheetFunction.Match(max_volume, Range("l2:l" & (ticker_counter + 1)), 0) + 1           ' find max volume row
+        
+        'following six lines popluate the box on the right with the max, min gain info with the correct data
+        Cells(2, 15).Value = Cells(max_gain_row, 9).Value       '- populate with correct ticker
+        Cells(2, 16).Value = max_percent_chge                   '- populate w correct value
+        Cells(2, 16).NumberFormat = "0.00%"
+        
+        Cells(3, 15).Value = Cells(max_decline_row, 9).Value    '- populate with correct ticker
+        Cells(3, 16).Value = min_percent_chge                   '- populate w correct value
+        Cells(3, 16).NumberFormat = "0.00%"
+        
+        Cells(4, 15).Value = Cells(max_volume_row, 9).Value     '- populate with correct ticker
+        Cells(4, 16).Value = max_volume                         '- populate w correct value
+        Cells(4, 16).NumberFormat = "0,000"                     '- add comma separator to volume
+        
+        Columns("A:P").AutoFit
+    Next active_sheet
+End Sub
+
